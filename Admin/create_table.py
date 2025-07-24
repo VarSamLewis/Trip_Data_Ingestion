@@ -26,7 +26,7 @@ with conn.cursor() as cur:
             checkpoint TEXT CHECK (checkpoint IN ('pickup', 'dropoff', 'cancelled'))
         );
 
-        CREATE TABLE IF NOT EXISTS trip_events_cache (
+        CREATE TABLE IF NOT EXISTS trip_events (
             event_id SERIAL PRIMARY KEY,
             trip_id TEXT NOT NULL,
             rider_id TEXT NOT NULL,
@@ -50,7 +50,11 @@ with conn.cursor() as cur:
             route JSONB
           
         );
-
+        CREATE TABLE trip_tracker (
+            trip_id UUID PRIMARY KEY,
+            is_complete BOOLEAN DEFAULT FALSE,
+            flushed_at TIMESTAMP
+        );
    
     """)
 
