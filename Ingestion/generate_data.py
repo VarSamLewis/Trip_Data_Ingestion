@@ -13,8 +13,8 @@ def generate_event(trip_id, rider_id, driver_id, checkpoint):
     }
 
     status = random.choices(
-        ["completed", "cancelled", "no_show"],
-        weights=[0.85, 0.10, 0.05],
+        ["completed", "cancelled",],
+        weights=[0.85, 0.15],
         k=1
     )[0]
 
@@ -30,7 +30,7 @@ def generate_event(trip_id, rider_id, driver_id, checkpoint):
 
 # Generate sample batchen
 def generate_batch(num_trips=10):
-    drivers = [f"driver-{i}" for i in range(25)]
+    drivers = [f"driver-{i}" for i in range(2500)]
     events = []
 
     for _ in range(num_trips):

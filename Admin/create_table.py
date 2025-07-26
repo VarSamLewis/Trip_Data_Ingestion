@@ -22,7 +22,7 @@ with conn.cursor() as cur:
             location_lat DOUBLE PRECISION NOT NULL,
             location_lon DOUBLE PRECISION NOT NULL,
             address TEXT NOT NULL,
-            status TEXT CHECK (status IN ('started', 'completed', 'cancelled')),
+            status TEXT CHECK (status IN ('in_progress', 'completed', 'cancelled')),
             checkpoint TEXT CHECK (checkpoint IN ('pickup', 'dropoff', 'cancelled'))
         );
 
