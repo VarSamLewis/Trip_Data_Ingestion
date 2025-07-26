@@ -4,7 +4,6 @@ from generate_data import generate_batch
 import logging
 import time
 import threading
-import uuid
 
 logger = logging.getLogger("cerbyd_triplogger")
 logging.basicConfig(level=logging.INFO,

@@ -50,7 +50,7 @@ with conn.cursor() as cur:
             route JSONB
           
         );
-        CREATE TABLE trip_tracker (
+        CREATE TABLE IF NOT EXISTS trip_tracker (
             trip_id UUID PRIMARY KEY,
             is_complete BOOLEAN DEFAULT FALSE,
             flushed_at TIMESTAMP
