@@ -30,6 +30,7 @@ async def get_trips(
     start_time: str = Query(None, description="Start time for filtering trips (ISO format)"),
     end_time: str = Query(None, description="End time for filtering trips (ISO format)"),
     distance_eq: float = Query(None, description="Minimum distance in kilometers for filtering trips"),
+    number_of_trips: int = Query(10, description="Number of trips to return"),
 ):
     try:
         conn = get_connection()
@@ -49,6 +50,10 @@ async def get_trips(
         if distance_eq:
             query += " AND ROUND(distance_km) = %s"
             params.append(distance_eq)
+
+        if number_of_trips:
+            query += " LIMIT %s"
+            params.append(number_of_trips)
 
         cur.execute(query, tuple(params))
         trips = [dict(row) for row in cur.fetchall()]
