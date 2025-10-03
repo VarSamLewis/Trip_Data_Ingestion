@@ -1,18 +1,24 @@
 ﻿import psycopg2
 import os
 
-conn = psycopg2.connect(
-	dbname="cerbyd_triplogger",
-	user='postgres',
-	password='x836vzm7dI',
-	host='localhost',
-	port = 5432
-)
+# Use Docker service name 'db' as host when running from another container
+# Use 'localhost' when running from host machine
+host = os.getenv('DB_HOST', 'localhost')
 
+conn = psycopg2.connect(
+    dbname="cerbyd_triplogger",
+    user='postgres',
+    password='x836vzm7dI',
+    host=host,
+    port=5432
+)
 
 with conn.cursor() as cur:
     cur.execute("""
-        -- -- trips_events
+        -- Enable UUID extension
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        
+        -- trips_events
         CREATE UNLOGGED TABLE IF NOT EXISTS trip_events_cache (
             event_id SERIAL PRIMARY KEY,
             trip_id TEXT NOT NULL,
@@ -38,6 +44,7 @@ with conn.cursor() as cur:
             status TEXT,
             checkpoint TEXT
         );
+        
         -- trips table (main lifecycle record)
         CREATE TABLE IF NOT EXISTS trips (
             trip_id UUID PRIMARY KEY,
@@ -48,17 +55,22 @@ with conn.cursor() as cur:
             distance_km DOUBLE PRECISION,
             status TEXT CHECK (status IN ('started', 'completed', 'cancelled')),
             route JSONB
-          
         );
+        
         CREATE TABLE IF NOT EXISTS trip_tracker (
             trip_id UUID PRIMARY KEY,
             is_complete BOOLEAN DEFAULT FALSE,
             flushed_at TIMESTAMP
         );
-   
+        
+        -- Create indexes for better performance
+        CREATE INDEX IF NOT EXISTS idx_trip_events_cache_trip_id ON trip_events_cache(trip_id);
+        CREATE INDEX IF NOT EXISTS idx_trip_events_cache_timestamp ON trip_events_cache(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_trip_events_trip_id ON trip_events(trip_id);
+        CREATE INDEX IF NOT EXISTS idx_trips_start_time ON trips(start_time);
+        CREATE INDEX IF NOT EXISTS idx_trips_status ON trips(status);
     """)
 
 conn.commit()
-cur.close()
 conn.close()
 print("✅ Tables created successfully.")

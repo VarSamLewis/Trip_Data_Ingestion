@@ -4,19 +4,20 @@ from generate_data import generate_batch
 import logging
 import time
 import threading
+import os
 
 logger = logging.getLogger("cerbyd_triplogger")
 logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+                    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s')
 
 db_pool = ThreadedConnectionPool(
     minconn=1,
     maxconn=10,
-    dbname="cerbyd_triplogger",
-    user="postgres",
-    password="x836vzm7dI",
-    host="localhost",
-    port=5432
+    dbname=os.getenv("DB_NAME", "cerbyd_triplogger"),
+    user=os.getenv("DB_USER", "postgres"),
+    password=os.getenv("DB_PASSWORD", "x836vzm7dI"),
+    host=os.getenv("DB_HOST", "db"),
+    port=int(os.getenv("DB_PORT", "5432"))
 )
 
 def get_connection():
@@ -59,7 +60,7 @@ def insert_trip_events(events):
     finally:
         cur.close()
         return_connection(conn)
-    print(f"✅ Trip {len(events)} events inserted successfully.")
+    logger.info(f"✅ {len(events)} trip events inserted successfully.")
 
 
 def write_to_tracker():
@@ -83,7 +84,7 @@ def write_to_tracker():
     finally:
         cur.close()
         return_connection(conn)
-    print(f"✅ {tracker} Trip tracker updated with completed trips.")
+    logger.info(f"✅ {tracker} trip tracker updated with completed trips.")
 
 def cache_to_perm():
     conn = get_connection()
@@ -122,11 +123,11 @@ def cache_to_perm():
     finally:
         cur.close()
         return_connection(conn)
-    print(f"✅ {flush_count} Cache data transferred to permanent table.")
+    logger.info(f"✅ {flush_count} cache data transferred to permanent table.")
 
 def ingest_loop():
     start = time.time()
-    while time.time() - start < 60:
+    while time.time() - start < 300:  # Run for 5 minutes instead of 1
         batch = generate_batch(10)
         insert_trip_events(batch)
         time.sleep(1)
@@ -143,6 +144,8 @@ def flush_loop():
 
 
 if __name__ == "__main__":
+    logger.info("Starting Cerbyd data ingestion service...")
+    
     t1 = threading.Thread(target=ingest_loop)
     t2 = threading.Thread(target=tracker_loop)
     t3 = threading.Thread(target=flush_loop)
@@ -152,8 +155,9 @@ if __name__ == "__main__":
     t3.start()
 
     t1.join()
+    logger.info("Ingestion loop completed")
     t2.join()
     t3.join()
 
-    
     db_pool.closeall()
+    logger.info("Data ingestion service completed")

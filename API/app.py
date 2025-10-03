@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Query
 import psycopg2
 import psycopg2.extras
@@ -9,21 +10,37 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 def get_connection():
-	try:
-		conn = psycopg2.connect(
-				dbname="cerbyd_triplogger",
-				user='postgres',
-				password='x836vzm7dI',
-				host='localhost',
-				port = 5432
-			)
-		return conn
-	except psycopg2.Error as e:
-		logger.error(f"Database connection error: {e}")
-		return 
+    try:
+        conn = psycopg2.connect(
+            dbname=os.getenv("DB_NAME", "cerbyd_triplogger"),
+            user=os.getenv("DB_USER", "postgres"),
+            password=os.getenv("DB_PASSWORD", "x836vzm7dI"),
+            host=os.getenv("DB_HOST", "db"),  # Use 'db' service name for Docker
+            port=int(os.getenv("DB_PORT", "5432"))
+        )
+        return conn
+    except psycopg2.Error as e:
+        logger.error(f"Database connection error: {e}")
+        return None  # Explicitly return None
 
 
 app = FastAPI(title="Cerbyd_Trip_Ingestion_Service")
+
+@app.get("/")
+async def root():
+    return {"message": "Cerbyd Trip Ingestion Service", "status": "running"}
+
+@app.get("/health")
+async def health_check():
+    try:
+        conn = get_connection()
+        if conn:
+            conn.close()
+            return {"status": "healthy", "database": "connected"}
+        return {"status": "unhealthy", "database": "disconnected"}
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        return {"status": "unhealthy", "error": str(e)}
 
 @app.get("/Cerbyd_Trip_Ingestion_Service")
 async def get_trips(
@@ -34,6 +51,9 @@ async def get_trips(
 ):
     try:
         conn = get_connection()
+        if not conn:  # Check if connection is None
+            return {"error": "Database connection failed"}
+        
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
         query = "SELECT * FROM trips WHERE TRUE"
