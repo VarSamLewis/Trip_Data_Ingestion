@@ -3,7 +3,14 @@ from fastapi import FastAPI, Query
 import psycopg2
 import psycopg2.extras
 import logging
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from fastapi.responses import Response
+import time
 
+# Metrics
+REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint'])
+REQUEST_DURATION = Histogram('http_request_duration_seconds', 'HTTP request duration')
+DB_QUERIES = Counter('database_queries_total', 'Total database queries', ['status'])
 
 logger = logging.getLogger("cerbyd_triplogger")
 logging.basicConfig(level=logging.INFO,
@@ -11,20 +18,35 @@ logging.basicConfig(level=logging.INFO,
 
 def get_connection():
     try:
-        conn = psycopg2.connect(
-            dbname=os.getenv("DB_NAME", "cerbyd_triplogger"),
-            user=os.getenv("DB_USER", "postgres"),
-            password=os.getenv("DB_PASSWORD", "x836vzm7dI"),
-            host=os.getenv("DB_HOST", "db"),  # Use 'db' service name for Docker
-            port=int(os.getenv("DB_PORT", "5432"))
-        )
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            conn = psycopg2.connect(database_url, sslmode='require')
+        else:
+            conn = psycopg2.connect(
+                dbname=os.getenv("DB_NAME", "cerbyd_triplogger"),
+                user=os.getenv("DB_USER", "postgres"),
+                password=os.getenv("DB_PASSWORD", "x836vzm7dI"),
+                host=os.getenv("DB_HOST", "db"),
+                port=int(os.getenv("DB_PORT", "5432"))
+            )
         return conn
     except psycopg2.Error as e:
         logger.error(f"Database connection error: {e}")
-        return None  # Explicitly return None
-
+        return None
 
 app = FastAPI(title="Cerbyd_Trip_Ingestion_Service")
+
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    REQUEST_COUNT.labels(method=request.method, endpoint=request.url.path).inc()
+    REQUEST_DURATION.observe(time.time() - start_time)
+    return response
+
+@app.get("/metrics")
+async def metrics():
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 @app.get("/")
 async def root():
@@ -36,10 +58,13 @@ async def health_check():
         conn = get_connection()
         if conn:
             conn.close()
+            DB_QUERIES.labels(status='success').inc()
             return {"status": "healthy", "database": "connected"}
+        DB_QUERIES.labels(status='failed').inc()
         return {"status": "unhealthy", "database": "disconnected"}
     except Exception as e:
         logger.error(f"Health check error: {e}")
+        DB_QUERIES.labels(status='error').inc()
         return {"status": "unhealthy", "error": str(e)}
 
 @app.get("/Cerbyd_Trip_Ingestion_Service")
@@ -51,7 +76,8 @@ async def get_trips(
 ):
     try:
         conn = get_connection()
-        if not conn:  # Check if connection is None
+        if not conn:
+            DB_QUERIES.labels(status='connection_failed').inc()
             return {"error": "Database connection failed"}
         
         cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -79,8 +105,12 @@ async def get_trips(
         trips = [dict(row) for row in cur.fetchall()]
         cur.close()
         conn.close()
+        
+        DB_QUERIES.labels(status='success').inc()
+        logger.info(f"Retrieved {len(trips)} trips")
         return {"trips": trips}
 
     except Exception as e:
         logger.error(f"Error executing query: {e}")
+        DB_QUERIES.labels(status='error').inc()
         return {"error": str(e)}

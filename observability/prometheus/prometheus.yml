@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'cerbyd-api'
+    static_configs:
+      - targets: ['cerbyd_api:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['cerbyd_postgres:5432']
+    scrape_interval: 30s
+
+  - job_name: 'docker-containers'
+    static_configs:
+      - targets: ['cerbyd_api:8000', 'cerbyd_ingestion:8080', 'cerbyd_postgres:5432']
+    scrape_interval: 30s
