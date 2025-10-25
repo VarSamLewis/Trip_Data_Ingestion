@@ -126,8 +126,9 @@ def cache_to_perm():
     logger.info(f"✅ {flush_count} cache data transferred to permanent table.")
 
 def ingest_loop():
-    start = time.time()
-    while time.time() - start < 300:  # Run for 5 minutes instead of 1
+    # Remove the time limit - run forever like the other loops
+    logger.info("Starting continuous data ingestion...")
+    while True:  # Changed from time-based while loop
         batch = generate_batch(10)
         insert_trip_events(batch)
         time.sleep(1)
